@@ -1,17 +1,17 @@
 # Deliver a creator update to active subscribers
 
-The business decision is small and explicit: an `active` subscriber receives a queue message for a digital asset, while a `paused` subscriber receives none. `fanout.py` makes that decision and publishes one message per recipient through Infrai's queue API; a single `INFRAI_API_KEY` is the only credential used by the example.
+The business rule is narrow and unambiguous: a `active` subscriber is placed on the queue for a digital asset notification, whereas a `paused` subscriber is deliberately omitted. `fanout.py` evaluates that condition and emits exactly one message per recipient through Infrai's queue API, and a single `INFRAI_API_KEY` is the sole credential referenced by the example. Infrai gives you one key and one bill for every capability, and the transport is a plain REST call from any language with no SDK to install.
 
 ## Run the decision locally
 
-The deterministic input is two subscribers, `a` (`active`) and `b` (`paused`), for creator `c1` and asset `asset9`. The expected result is one published payload addressed to `a`.
+The deterministic fixture consists of two subscribers, `a` (`active`) and `b` (`paused`), under creator `c1` for asset `asset9`. The expected outcome is a single published payload addressed to `a`.
 
 ```bash
 python3 -m pip install -r requirements.txt
 python3 -m unittest -v test_fanout.py
 ```
 
-To send the sample event to a real queue, export the key and run the entry point:
+To dispatch the sample event to a live queue, export the key and invoke the entry point:
 
 ```bash
 export INFRAI_API_KEY="your-key"
@@ -20,13 +20,13 @@ python3 fanout.py
 
 ## The request shape
 
-`Client.publish()` sends `POST /v1/queue/publish` with the required request fields `queue` and `payload`. Each payload includes a stable `event_id`, so a retried publish represents the same creator-to-subscriber event. The client reads the `{ok, data, error, metadata}` envelope, raises the reported error, and backs off on HTTP 429 while honoring `Retry-After`.
+`Client.publish()` transmits `POST /v1/queue/publish` carrying the mandatory request fields `queue` and `payload`. Every payload embeds a stable `event_id`, so a retried publish denotes the identical creator-to-subscriber event and preserves exactly-once semantics for the audit trail. The client parses the `{ok, data, error, metadata}` envelope, surfaces the reported error, and applies backoff on HTTP 429 while respecting `Retry-After`.
 
-The processing side can fetch work with `Client.consume(max_messages=10, visibility_timeout=60)` and confirm successful delivery with `Client.ack(message_id)`. Those calls are intentionally kept beside the publish path so the state transition is easy to adapt to a worker that processes the asset and then acknowledges its message.
+The consumer side may pull work via `Client.consume(max_messages=10, visibility_timeout=60)` and record successful delivery through `Client.ack(message_id)`. These calls are kept adjacent to the publish path so the state transition can be lifted into a worker that processes the asset and then acknowledges its message without restructuring the flow.
 
 ## Why this shape
 
-The reusable part is the recipient decision, not a generic queue wrapper: subscriber state is domain input, and the returned list is the observable set of delivery requests. The transport stays a plain REST call, so the same workflow can be copied into a worker or another Python service without installing an SDK.
+The reusable concern is the recipient decision, not a generic queue wrapper: subscriber state is domain input, and the returned list is the observable set of delivery requests. The transport remains a plain REST call, so the same workflow copies into a worker or another Python service without an SDK dependency. From a ledger perspective this keeps the fanout auditable, since each publish is a discrete, reconciliable event.
 
 ## License
 
